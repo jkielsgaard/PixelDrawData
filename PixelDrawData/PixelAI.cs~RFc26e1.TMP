@@ -1,0 +1,40 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace PixelDrawData
+{
+    public class PixelAI
+    {
+        public PixelJSON AI(PixelJSON PixelData)
+        {
+            int xyLength = 15;
+
+            string[] X = new string[15];
+
+            int c = 0;
+            for (int x = 0; x < xyLength; x = x + 2)
+            {
+                for (int y = 0; y < xyLength; y = y + 2)
+                {
+                    if (PixelData.PixelDataXY[x, y] == 1) { X[c] = x + "" + y; c++; }
+                    
+                }
+            }
+
+
+                        //if (PixelData.PixelDataXY[0, 0] == 1) { X[0] = "00"; }
+                        //if (PixelData.PixelDataXY[0, 2] == 1) { X[1] = "01"; }
+                        //if (PixelData.PixelDataXY[0, 4] == 1) { X[2] = "02"; }
+                        //if (PixelData.PixelDataXY[0, 6] == 1) { X[3] = "03"; }
+                        //if (PixelData.PixelDataXY[0, 8] == 1) { X[4] = "04"; }
+                        //if (PixelData.PixelDataXY[0, 10] == 1) { X[5] = "05"; }
+                        //if (PixelData.PixelDataXY[0, 12] == 1) { X[6] = "06"; }
+                        //if (PixelData.PixelDataXY[0, 14] == 1) { X[7] = "07"; }
+
+            return PixelData;
+        }
+    }
+}

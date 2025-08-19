@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,48 @@ import (
 )
 
 func main() {
+	// Define a flag for test run
+	testRun := flag.Bool("testrun", false, "Run in non-interactive test mode")
+	flag.Parse()
+
+	if *testRun {
+		runTest()
+	} else {
+		runInteractive()
+	}
+}
+
+func runTest() {
+	fmt.Println("Running in test mode...")
+	// 1. Generate data
+	pJSON := pixeldata.GeneratePixelData()
+	fmt.Println("Generated Pixel ID:", pJSON.PixelID)
+
+	// 2. Label it
+	pJSON.PixelLabel = "straight-test"
+	fmt.Println("Labeled as:", pJSON.PixelLabel)
+
+	// 3. Save it
+	if err := jsondb.PutData(pJSON); err != nil {
+		log.Fatalf("Error saving data in test mode: %v", err)
+	}
+	fmt.Println("Data saved successfully.")
+
+	// 4. Verify by reading
+	data, err := jsondb.GetData()
+	if err != nil {
+		log.Fatalf("Error reading data in test mode: %v", err)
+	}
+
+	if len(data) > 0 && data[len(data)-1].PixelID == pJSON.PixelID {
+		fmt.Println("Successfully read data back from the file.")
+		fmt.Println("Test completed successfully.")
+	} else {
+		log.Fatalf("Failed to read data back from the file or data mismatch.")
+	}
+}
+
+func runInteractive() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {

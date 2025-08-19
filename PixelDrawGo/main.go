@@ -10,8 +10,11 @@ import (
 	"strings"
 
 	"pixel-draw-go/jsondb"
+	"pixel-draw-go/pixelai"
 	"pixel-draw-go/pixeldata"
 )
+
+const k = 5 // k value for the k-NN algorithm
 
 func main() {
 	// Define a flag for test run
@@ -21,27 +24,35 @@ func main() {
 	if *testRun {
 		runTest()
 	} else {
-		runInteractive()
+		reader := bufio.NewReader(os.Stdin)
+		runInteractive(reader)
 	}
 }
 
 func runTest() {
+	fmt.Println("--- Running Save/Load Test ---")
+	testSaveAndLoad()
+	fmt.Println("\n--- Running k-NN Prediction Test ---")
+	testKNN()
+	fmt.Println("\nAll tests completed successfully.")
+}
+
+func testSaveAndLoad() {
+	// This test is designed to be run on a clean slate.
+	// Let's remove the old test file if it exists.
+	os.Remove("PixelTrainingData.jsonl")
+
 	fmt.Println("Running in test mode...")
-	// 1. Generate data
 	pJSON := pixeldata.GeneratePixelData()
 	fmt.Println("Generated Pixel ID:", pJSON.PixelID)
-
-	// 2. Label it
 	pJSON.PixelLabel = "straight-test"
 	fmt.Println("Labeled as:", pJSON.PixelLabel)
 
-	// 3. Save it
 	if err := jsondb.PutData(pJSON); err != nil {
 		log.Fatalf("Error saving data in test mode: %v", err)
 	}
 	fmt.Println("Data saved successfully.")
 
-	// 4. Verify by reading
 	data, err := jsondb.GetData()
 	if err != nil {
 		log.Fatalf("Error reading data in test mode: %v", err)
@@ -49,70 +60,128 @@ func runTest() {
 
 	if len(data) > 0 && data[len(data)-1].PixelID == pJSON.PixelID {
 		fmt.Println("Successfully read data back from the file.")
-		fmt.Println("Test completed successfully.")
+		fmt.Println("Save/Load Test completed successfully.")
 	} else {
 		log.Fatalf("Failed to read data back from the file or data mismatch.")
 	}
 }
 
-func runInteractive() {
-	reader := bufio.NewReader(os.Stdin)
+func testKNN() {
+	fmt.Println("Creating a dummy training set for k-NN test...")
+	trainingData := []pixeldata.PixelJSON{}
 
+	// Create 5 identical "straight" patterns
+	for i := 0; i < 5; i++ {
+		straightLine := make([][]int, 16)
+		for r := range straightLine {
+			straightLine[r] = make([]int, 16)
+			if r == 8 { // A horizontal line in the middle
+				for c := range straightLine[r] {
+					straightLine[r][c] = 1
+				}
+			}
+		}
+		trainingData = append(trainingData, pixeldata.PixelJSON{PixelLabel: "straight", PixelDataXY: straightLine})
+	}
+
+	// Create a test pattern that is identical to the "straight" ones
+	testPattern := pixeldata.PixelJSON{
+		PixelDataXY: trainingData[0].PixelDataXY,
+	}
+
+	fmt.Println("Predicting the label of a known 'straight' pattern...")
+	prediction := pixelai.Predict(trainingData, testPattern, k)
+
+	fmt.Println("Predicted label:", prediction)
+	if prediction == "straight" {
+		fmt.Println("k-NN Test passed: Correctly predicted 'straight'.")
+	} else {
+		log.Fatalf("k-NN Test failed: Expected 'straight', but got '%s'", prediction)
+	}
+}
+
+
+func runInteractive(reader *bufio.Reader) {
 	for {
-		// Generate new pixel data
-		pJSON := pixeldata.GeneratePixelData()
-
-		// Display the data in the console
-		pixelConsolAnalyze(pJSON)
-
-		// Prompt user for input
-		fmt.Println()
-		fmt.Println("What is the line?")
-		fmt.Println("1. straight")
-		fmt.Println("2. curved")
-		fmt.Println("3. sinewave")
+		fmt.Println("\n--- Main Menu ---")
+		fmt.Println("1. Label a new pattern")
+		fmt.Println("4. Predict a new pattern")
 		fmt.Println("9. Exit")
 		fmt.Print("# ")
 
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			log.Println("Error reading input:", err)
-			continue
-		}
-
-		// Trim whitespace and convert to integer
-		answer, err := strconv.Atoi(strings.TrimSpace(input))
-		if err != nil {
-			log.Println("Invalid input, please enter a number.")
-			continue
-		}
-
-		// Process user's choice
-		if answer == 9 {
-			break // Exit the loop
-		}
+		input, _ := reader.ReadString('\n')
+		answer, _ := strconv.Atoi(strings.TrimSpace(input))
 
 		switch answer {
 		case 1:
-			pJSON.PixelLabel = "straight"
-		case 2:
-			pJSON.PixelLabel = "curved"
-		case 3:
-			pJSON.PixelLabel = "sinewave"
+			runLabeling(reader)
+		case 4:
+			runPrediction(reader)
+		case 9:
+			fmt.Println("Exiting application.")
+			return
 		default:
-			fmt.Println("Invalid choice. Data not saved.")
-			continue // Skip saving
-		}
-
-		// Save the labeled data
-		if err := jsondb.PutData(pJSON); err != nil {
-			log.Println("Error saving data:", err)
-		} else {
-			fmt.Println("Data saved.")
+			fmt.Println("Invalid choice.")
 		}
 	}
+}
 
-	fmt.Println("Exiting application.")
+func runLabeling(reader *bufio.Reader) {
+	pJSON := pixeldata.GeneratePixelData()
+	pixelConsolAnalyze(pJSON)
+
+	fmt.Println()
+	fmt.Println("What is the line?")
+	fmt.Println("1. straight")
+	fmt.Println("2. curved")
+	fmt.Println("3. sinewave")
+	fmt.Print("# ")
+
+	input, _ := reader.ReadString('\n')
+	answer, _ := strconv.Atoi(strings.TrimSpace(input))
+
+	switch answer {
+	case 1:
+		pJSON.PixelLabel = "straight"
+	case 2:
+		pJSON.PixelLabel = "curved"
+	case 3:
+		pJSON.PixelLabel = "sinewave"
+	default:
+		fmt.Println("Invalid choice. Data not saved.")
+		return
+	}
+
+	if err := jsondb.PutData(pJSON); err != nil {
+		log.Println("Error saving data:", err)
+	} else {
+		fmt.Println("Data saved.")
+	}
+}
+
+func runPrediction(reader *bufio.Reader) {
+	fmt.Println("\n--- Prediction Mode ---")
+	trainingData, err := jsondb.GetData()
+	if err != nil {
+		log.Println("Error getting training data:", err)
+		return
+	}
+
+	if len(trainingData) < k {
+		fmt.Printf("Not enough training data. Need at least %d labeled patterns. You have %d.\n", k, len(trainingData))
+		return
+	}
+
+	fmt.Printf("Loaded %d labeled patterns for prediction.\n", len(trainingData))
+	newPattern := pixeldata.GeneratePixelData()
+
+	prediction := pixelai.Predict(trainingData, newPattern, k)
+
+	newPattern.PixelLabel = "PREDICTED: " + prediction
+	pixelConsolAnalyze(newPattern)
+
+	fmt.Println("\nPress Enter to continue...")
+	reader.ReadString('\n')
 }
 
 func pixelConsolAnalyze(data pixeldata.PixelJSON) {
